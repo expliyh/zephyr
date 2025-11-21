@@ -23,7 +23,7 @@
 #include "host/conn_internal.h"
 #include "l2cap_br_internal.h"
 #include "rfcomm_internal.h"
-#include "at.h"
+#include "at_internal.h"
 #include "sco_internal.h"
 #include "hfp_ag_internal.h"
 
@@ -163,38 +163,38 @@ static struct bt_sdp_attribute hfp_ag_attrs[] = {
 
 static struct bt_sdp_record hfp_ag_rec = BT_SDP_RECORD(hfp_ag_attrs);
 
-static enum at_cme bt_hfp_ag_get_cme_err(int err)
+static enum bt_at_cme bt_hfp_ag_get_cme_err(int err)
 {
-	enum at_cme cme_err;
+	enum bt_at_cme cme_err;
 
 	switch (err) {
 	case -ENOEXEC:
-		cme_err = CME_ERROR_OPERATION_NOT_SUPPORTED;
+		cme_err = BT_AT_CME_ERROR_OPERATION_NOT_SUPPORTED;
 		break;
 	case -EFAULT:
-		cme_err = CME_ERROR_AG_FAILURE;
+		cme_err = BT_AT_CME_ERROR_AG_FAILURE;
 		break;
 	case -ENOSR:
-		cme_err = CME_ERROR_MEMORY_FAILURE;
+		cme_err = BT_AT_CME_ERROR_MEMORY_FAILURE;
 		break;
 	case -ENOMEM:
 	case -ENOBUFS:
-		cme_err = CME_ERROR_MEMORY_FULL;
+		cme_err = BT_AT_CME_ERROR_MEMORY_FULL;
 		break;
 	case -ENAMETOOLONG:
-		cme_err = CME_ERROR_DIAL_STRING_TO_LONG;
+		cme_err = BT_AT_CME_ERROR_DIAL_STRING_TOO_LONG;
 		break;
 	case -EINVAL:
-		cme_err = CME_ERROR_INVALID_INDEX;
+		cme_err = BT_AT_CME_ERROR_INVALID_INDEX;
 		break;
 	case -ENOTSUP:
-		cme_err = CME_ERROR_OPERATION_NOT_ALLOWED;
+		cme_err = BT_AT_CME_ERROR_OPERATION_NOT_ALLOWED;
 		break;
 	case -ENOTCONN:
-		cme_err = CME_ERROR_NO_CONNECTION_TO_PHONE;
+		cme_err = BT_AT_CME_ERROR_NO_CONNECTION_TO_PHONE;
 		break;
 	default:
-		cme_err = CME_ERROR_AG_FAILURE;
+		cme_err = BT_AT_CME_ERROR_AG_FAILURE;
 		break;
 	}
 
