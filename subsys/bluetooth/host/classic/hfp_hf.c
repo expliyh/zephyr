@@ -287,34 +287,53 @@ int hfp_hf_send_cmd(struct bt_hfp_hf *hf, at_resp_cb_t resp,
 	return 0;
 }
 
-static int vendor_handle(struct at_client *hf_at)
+static int vendor_resp(struct at_client *hf_at, struct net_buf *buf)
 {
-	char *val;
+	struct bt_hfp_hf *hf = CONTAINER_OF(hf_at, struct bt_hfp_hf, at);
+	char rsp[HF_MAX_BUF_LEN];
+	const char *data = (const char *)buf->data;
+	int val_len = 0;
+	int len;
 
-	val = at_get_string(hf_at);
-	if (!val) {
-		LOG_ERR("Error getting value");
+	LOG_DBG("Vendor specific response received");
+
+	/* Find the value part until \r */
+	while (val_len < buf->len && data[val_len] != '\r') {
+		val_len++;
+	}
+
+	/* Build full response: +<CMD>:<value> */
+	len = snprintf(rsp, sizeof(rsp), "+%s:%.*s",
+		       hf_at->buf, val_len, data);
+	if (len < 0 || len >= sizeof(rsp)) {
+		LOG_ERR("Vendor response too long");
 		return 0;
 	}
 
+	/* Consume value, \r and \n from buf */
+	net_buf_pull(buf, val_len);
+	if (buf->len && buf->data[0] == '\r') {
+		net_buf_pull(buf, 1);
+	}
+	if (buf->len && buf->data[0] == '\n') {
+		net_buf_pull(buf, 1);
+	}
+
+	/* Reset AT state for result parsing */
+	hf_at->state = AT_STATE_START;
+
+	if (bt_hf && bt_hf->vendor_specific) {
+		bt_hf->vendor_specific(hf, rsp);
+	}
+
 	return 0;
-}
-
-static int vendor_resp(struct at_client *hf_at, struct net_buf *buf)
-{
-	LOG_DBG("Vendor specific response received");
-
-	int err = at_parse_cmd_input(hf_at, buf, "VENDOR", vendor_handle,
-		AT_CMD_TYPE_NORMAL);
-
-	return err;
 }
 
 static int vendor_finish(struct at_client *hf_at, enum bt_at_result result,
 		          enum bt_at_cme cme_err)
 {
 	struct bt_hfp_hf *hf = CONTAINER_OF(hf_at, struct bt_hfp_hf, at);
-	LOG_DBG("Vendor specific response received");
+	LOG_DBG("Vendor specific response finished");
 
 	bt_hf->vendor_specific(hf, NULL);
 
