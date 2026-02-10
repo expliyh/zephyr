@@ -3734,7 +3734,7 @@ static int hfp_ag_at_cmd_ack(struct bt_hfp_ag *ag, int err)
 	enum at_cme cme_err;
 
 	if ((err != 0) && atomic_test_bit(ag->flags, BT_HFP_AG_CMEE_ENABLE)) {
-		cme_err = bt_hfp_ag_get_cme_err(err);
+		cme_err = err < 0 ? bt_hfp_ag_get_cme_err(err) : err;
 		err = hfp_ag_send_data(ag, NULL, NULL, "\r\n+CME ERROR:%d\r\n", (uint32_t)cme_err);
 	} else {
 		bt_hfp_ag_tx_cb_t cb;
@@ -3753,6 +3753,7 @@ static void hfp_ag_recv(struct bt_rfcomm_dlc *dlc, struct net_buf *buf)
 	struct bt_hfp_ag *ag = CONTAINER_OF(dlc, struct bt_hfp_ag, rfcomm_dlc);
 	uint8_t *data = buf->data;
 	uint16_t len = buf->len;
+	enum bt_at_cme cme_err = BT_AT_CME_ERROR_AG_FAILURE;
 	int err = -ENOEXEC;
 
 	LOG_HEXDUMP_DBG(data, len, "Received:");
@@ -3775,6 +3776,26 @@ static void hfp_ag_recv(struct bt_rfcomm_dlc *dlc, struct net_buf *buf)
 		}
 	}
 
+	if ((err == -ENOEXEC) && bt_ag && bt_ag->vendor_at_cmd) {
+		size_t copy_len;
+
+		size_t buf_size = sizeof(ag->buffer);
+
+		int written = snprintf(ag->buffer, buf_size, "%s", data);
+
+		if (written >= buf_size) {
+			LOG_ERR("HFP AG buffer truncated: input length exceeds buffer size %zu",
+				buf_size - 1);
+		}
+
+		if (written < 0) {
+			LOG_ERR("Failed to copy AT command");
+			return;
+		}
+
+		err = bt_ag->vendor_at_cmd(ag, ag->buffer, &cme_err);
+	}
+
 	if (err == -EINPROGRESS) {
 		LOG_DBG("OK code will be replied later");
 		return;
@@ -3787,7 +3808,8 @@ static void hfp_ag_recv(struct bt_rfcomm_dlc *dlc, struct net_buf *buf)
 		return;
 	}
 
-	err = hfp_ag_at_cmd_ack(ag, err);
+	cme_err = cme_err == BT_AT_CME_ERROR_AG_FAILURE ? err : cme_err;
+	err = hfp_ag_at_cmd_ack(ag, cme_err);
 
 	hfp_ag_postprocess_at_cmd(ag);
 
@@ -5694,5 +5716,33 @@ failed:
 	k_work_cancel_delayable(&ag->ongoing_call_work);
 	bt_hfp_ag_notify_cind_value(ag);
 	bt_ag_send_ok_code(ag);
+	return err;
+}
+
+int bt_hfp_ag_send_vendor(struct bt_hfp_ag *ag, const char *rsp)
+{
+	int err;
+	const char *line;
+
+	LOG_DBG("");
+
+	if (ag == NULL) {
+		return -EINVAL;
+	}
+
+	hfp_ag_lock(ag);
+	if (ag->state != BT_HFP_CONNECTED) {
+		hfp_ag_unlock(ag);
+		return -ENOTCONN;
+	}
+	hfp_ag_unlock(ag);
+
+	line = (rsp == NULL) ? "OK" : rsp;
+
+	err = hfp_ag_send_data(ag, NULL, NULL, "\r\n%s\r\n", line);
+	if (err) {
+		LOG_ERR("Fail to send vendor specific response (%d)", err);
+	}
+
 	return err;
 }
