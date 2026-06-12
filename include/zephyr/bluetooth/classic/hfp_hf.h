@@ -509,6 +509,30 @@ struct bt_hfp_hf_cb {
 	 *  @param call Current call information.
 	 */
 	void (*query_call)(struct bt_hfp_hf *hf, struct bt_hfp_hf_current_call *call);
+
+	/** @brief Unsolicited command callback
+	 *
+	 * If this callback is provided it will be called whenever the
+	 * unsolicited result is received from AG.
+	 * For completion notification, use @ref bt_hfp_hf_cb::unsolicited_complete.
+	 * If @ref bt_hfp_hf_cb::unsolicited_complete is not provided, this callback
+	 * is called with NULL @p cmd and @p value when the request finishes.
+	 *
+	 * @param hf HFP HF object.
+	 * @param cmd Unsolicited command name (without leading '+').
+	 * @param value Unsolicited response value.
+	 */
+	void (*unsolicited)(struct bt_hfp_hf *hf, const char *cmd, const char *value);
+
+	/** @brief Unsolicited command complete callback
+	 *
+	 * If this callback is provided it will be called whenever the
+	 * unsolicited command is finished.
+	 *
+	 * @param hf HFP HF object.
+	 * @param err Result of the command transaction. 0 means success.
+	 */
+	void (*unsolicited_complete)(struct bt_hfp_hf *hf, int err);
 };
 
 /** @brief Register HFP HF profile
@@ -1056,6 +1080,28 @@ int bt_hfp_hf_battery(struct bt_hfp_hf *hf, uint8_t level);
  */
 int bt_hfp_hf_query_list_of_current_calls(struct bt_hfp_hf *hf);
 
+/** @brief Send custom AT command
+ *
+ *  Send a custom AT command to the AG.
+ *  The command shall include the leading `AT`/`AT+` prefix and shall
+ *  not include the terminating carriage return (`\r`).
+ *  Trailing `\r`/`\n` characters are ignored.
+ *
+ *  Built-in HFP commands (e.g. AT+BRSF, AT+CLCC) are rejected.
+ *
+ *  Responses are delivered through @ref bt_hfp_hf_cb::unsolicited and
+ *  @ref bt_hfp_hf_cb::unsolicited_complete callbacks.
+ *
+ *  @param hf  HFP HF object.
+ *  @param cmd AT command string.
+ *
+ *  @retval 0 on success.
+ *  @retval -ENOTCONN if @p hf is NULL.
+ *  @retval -EINVAL if @p cmd is NULL or malformed.
+ *  @retval -EBUSY if a custom AT command is already pending.
+ *  @retval -ENOMEM if no buffer is available.
+ */
+int bt_hfp_hf_send_at(struct bt_hfp_hf *hf, const char *cmd);
 #ifdef __cplusplus
 }
 #endif
