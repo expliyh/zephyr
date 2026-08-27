@@ -7,6 +7,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <stdbool.h>
+#include <stdint.h>
+
+#include <zephyr/sys/slist.h>
+
 /** @brief Life-span states of SCO channel. Used only by internal APIs
  *  dealing with setting channel to proper state depending on operational
  *  context.
@@ -90,6 +95,16 @@ struct bt_sco_server {
 	 * Only available when @kconfig{CONFIG_BT_SMP} is enabled.
 	 */
 	bt_security_t		sec_level;
+	/** @brief Server ownership matcher
+	 *
+	 *  This callback determines whether the server owns an incoming SCO
+	 *  connection. It must not block or modify state.
+	 *
+	 *  @param info The SCO accept information structure
+	 *
+	 *  @return true if this server owns the connection, otherwise false.
+	 */
+	bool (*matches)(const struct bt_sco_accept_info *info);
 	/** @brief Server accept callback
 	 *
 	 *  This callback is called whenever a new incoming connection requires
@@ -102,29 +117,23 @@ struct bt_sco_server {
 	 */
 	int (*accept)(const struct bt_sco_accept_info *info,
 			  struct bt_sco_chan **chan);
+	/** @internal Internally used field for registry list handling */
+	sys_snode_t		_node;
+	/** @internal Monotonically increasing registration sequence */
+	uint64_t		_registration_seq;
 };
 
 /** @brief Register SCO server.
  *
- *  Register SCO server, each new connection is authorized using the accept()
- *  callback which in case of success shall allocate the channel structure
- *  to be used by the new connection.
+ *  Register SCO server. Its matches() callback determines ownership of each
+ *  incoming connection, and its accept() callback authorizes an owned
+ *  connection and allocates the channel to be used by it.
  *
  *  @param server Server structure.
  *
  *  @return 0 in case of success or negative value in case of error.
  */
 int bt_sco_server_register(struct bt_sco_server *server);
-
-/** @brief Unregister SCO server.
- *
- *  Unregister previously registered SCO server.
- *
- *  @param server Server structure.
- *
- *  @return 0 in case of success or negative value in case of error.
- */
-int bt_sco_server_unregister(struct bt_sco_server *server);
 
 /** @brief sco channel connected.
  *

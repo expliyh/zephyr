@@ -4330,6 +4330,22 @@ static int hfp_ag_accept(struct bt_conn *conn, struct bt_rfcomm_server *server,
 	return 0;
 }
 
+static bool bt_hfp_ag_sco_matches(const struct bt_sco_accept_info *info)
+{
+	size_t index;
+
+	if (info == NULL || info->acl == NULL) {
+		return false;
+	}
+
+	index = (size_t)bt_conn_index(info->acl);
+	if (index >= ARRAY_SIZE(bt_hfp_ag_pool)) {
+		return false;
+	}
+
+	return bt_hfp_ag_pool[index].acl_conn == info->acl;
+}
+
 static int bt_hfp_ag_sco_accept(const struct bt_sco_accept_info *info,
 		struct bt_sco_chan **chan)
 {
@@ -4397,6 +4413,7 @@ static void hfp_ag_init(void)
 
 	static struct bt_sco_server sco_server = {
 		.sec_level = BT_SECURITY_L0,
+		.matches = bt_hfp_ag_sco_matches,
 		.accept = bt_hfp_ag_sco_accept,
 	};
 
